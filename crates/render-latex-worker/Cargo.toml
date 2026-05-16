@@ -1,0 +1,17 @@
+[package]
+name = "render-latex-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hex.workspace = true
+png.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+ratex-layout.workspace = true
+ratex-parser.workspace = true
+ratex-render.workspace = true
+ratex-types.workspace = true

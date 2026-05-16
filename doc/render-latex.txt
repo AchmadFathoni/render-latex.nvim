@@ -1,0 +1,255 @@
+*render-latex.txt*        Render LaTeX display equations in Markdown
+
+===============================================================================
+CONTENTS                                           *render-latex-contents*
+
+1. Introduction                                  |render-latex-introduction|
+2. Requirements                                  |render-latex-requirements|
+3. Setup                                         |render-latex-setup|
+4. Commands                                      |render-latex-commands|
+5. Compatibility                                 |render-latex-compatibility|
+6. Tmux                                          |render-latex-tmux|
+7. Troubleshooting                               |render-latex-troubleshooting|
+
+===============================================================================
+INTRODUCTION                                      *render-latex-introduction*
+
+render-latex.nvim renders Markdown display math blocks as transparent PNG
+images, with a fast inline text fallback for `$...$` and `\(...\)` spans.
+
+This is an early release. Defaults are designed to be low-config and stable,
+but option names may still change before v1.0.0.
+
+Display math is rendered for:
+>
+  $$
+  x^2 + y^2 = z^2
+  $$
+<
+and:
+>
+  \[
+  \int_0^\infty e^{-x^2}\,dx
+  \]
+<
+
+Inline math is intentionally not image-rendered. It uses highlights and conceal
+for smooth editing and predictable cursor behavior.
+
+Images are hidden while popups or floating windows are open. Plain command-line
+typing does not hide images by default; opt in with
+`render.hide_on_cmdline = true`. When command-line hiding is disabled, cmdline
+UI floats are ignored but completion popups still hide images until
+command-line mode exits.
+
+===============================================================================
+REQUIREMENTS                                      *render-latex-requirements*
+
+- Neovim 0.10+ with `vim.system`, `vim.uv`, `vim.fs`, extmarks, and Treesitter.
+- An image backend: `vim.ui.img` support or a Kitty graphics-capable terminal.
+- Rust toolchain only for development or source builds. Normal installs use
+  prebuilt workers on Linux x64, macOS x64, macOS arm64, and Windows x64.
+- For tmux image rendering: `set -g allow-passthrough on`.
+
+The plugin installs the matching prebuilt worker in the background on first
+setup. To install it manually:
+>
+  :RenderLatex install
+<
+
+To build from source instead:
+>
+  :RenderLatex build
+<
+or from a shell:
+>
+  make build-worker
+<
+
+===============================================================================
+SETUP                                                    *render-latex-setup*
+
+Minimal lazy.nvim-style setup:
+>
+  {
+    "techwizrd/render-latex.nvim",
+    ft = "markdown",
+    opts = {},
+  }
+<
+
+Minimal vim.pack setup:
+>
+  vim.pack.add({
+    "https://github.com/techwizrd/render-latex.nvim",
+  })
+<
+
+Common options:
+>
+  require("render_latex").setup({
+    render = {
+      preset = "match_text", -- "compact" or "presentation"
+      inline = "conceal",    -- "content", "highlight", or false
+      inline_symbols = true,
+      hide_on_cmdline = false,
+      background = "transparent",
+    },
+    image = {
+      backend = "auto",      -- "nvim" or "kitty"
+    },
+    install = {
+      auto = true,
+      repository = "techwizrd/render-latex.nvim",
+      version = "latest",
+    },
+    tmux = {
+      install_cleanup_hooks = false,
+    },
+  })
+<
+
+If you pin plugin versions, pin the worker release too:
+>
+  require("render_latex").setup({
+    install = { version = "v0.1.0" },
+  })
+<
+
+For best inline fallback rendering:
+>
+  vim.opt.conceallevel = 2
+  vim.opt.concealcursor = "nc"
+<
+
+===============================================================================
+COMMANDS                                             *render-latex-commands*
+
+All commands are subcommands of `:RenderLatex`.
+
+                                                        *:RenderLatex-enable*
+`:RenderLatex enable`       Enable rendering in supported buffers.
+
+                                                       *:RenderLatex-disable*
+`:RenderLatex disable`      Disable rendering in the current buffer.
+
+                                                        *:RenderLatex-toggle*
+`:RenderLatex toggle`       Toggle rendering.
+
+                                                       *:RenderLatex-refresh*
+`:RenderLatex refresh`      Queue a fresh render for the current buffer.
+
+                                                        *:RenderLatex-install*
+`:RenderLatex install`      Download the prebuilt worker for this platform.
+
+                                                          *:RenderLatex-build*
+`:RenderLatex build`        Build the Rust worker from source.
+
+                                                        *:RenderLatex-status*
+`:RenderLatex status`       Show raw status data with backend, worker, and
+                            integration diagnostics.
+
+                                                        *:RenderLatex-doctor*
+`:RenderLatex doctor`       Open a readable diagnostics scratch buffer.
+
+                                                    *:RenderLatex-tmux_check*
+`:RenderLatex tmux_check`   Open tmux diagnostics.
+
+                                                    *:RenderLatex-tmux_setup*
+`:RenderLatex tmux_setup`   Show optional tmux setup lines.
+
+                                                *:RenderLatex-equation_debug*
+`:RenderLatex equation_debug`    Inspect the equation under the cursor.
+
+                                             *:RenderLatex-equation_rerender*
+`:RenderLatex equation_rerender` Queue rerender for the equation under cursor.
+
+                                              *:RenderLatex-equation_source*
+`:RenderLatex equation_source`   Open source for the equation under cursor.
+
+                                              *:RenderLatex-equation_toggle*
+`:RenderLatex equation_toggle`   Toggle raw/rendered state for the equation.
+
+===============================================================================
+COMPATIBILITY                                   *render-latex-compatibility*
+
+OBSIDIAN.NVIM                                      *render-latex-obsidian*
+
+No special configuration is required. render-latex.nvim ignores YAML
+frontmatter, fenced code blocks, inline code spans, Obsidian comments, and
+indented code blocks. Display math inside Markdown blockquotes and Obsidian
+callouts is supported.
+
+RENDER-MARKDOWN.NVIM                        *render-latex-render-markdown*
+
+Let render-markdown.nvim handle Markdown structure and let render-latex.nvim
+own LaTeX rendering:
+>
+  require("render-markdown").setup({
+    latex = { enabled = false },
+  })
+<
+
+LazyVim users can apply the same override in a plugin spec:
+>
+  return {
+    {
+      "MeanderingProgrammer/render-markdown.nvim",
+      opts = {
+        latex = { enabled = false },
+      },
+    },
+  }
+<
+
+render-latex.nvim does not mutate other plugins' configuration. Compatibility
+diagnostics only run in manual commands and health checks, not in the render
+loop.
+
+===============================================================================
+TMUX                                                      *render-latex-tmux*
+
+For image rendering in tmux:
+>
+  set -g allow-passthrough on
+  set -g focus-events on
+  set -g default-terminal "tmux-256color"
+<
+
+Session-local cleanup hooks are opt-in:
+>
+  require("render_latex").setup({
+    tmux = { install_cleanup_hooks = true },
+  })
+<
+
+Use `:RenderLatex tmux_check` and `:RenderLatex tmux_setup` for diagnostics and
+setup details.
+
+===============================================================================
+TROUBLESHOOTING                              *render-latex-troubleshooting*
+
+Run:
+>
+  :RenderLatex doctor
+  :checkhealth render-latex
+<
+
+Common issues:
+
+- Worker missing: run `:RenderLatex install`, `:RenderLatex build`, or
+  configure `worker.bin`.
+- Worker auto-install fails: check proxy/firewall/offline restrictions. You can
+  disable background install with `install.auto = false` and retry manually with
+  `:RenderLatex install`.
+- Linux ARM64 does not ship a prebuilt worker in the first release. Use
+  `:RenderLatex build` or configure `worker.bin` there.
+- No display images: check the image backend and terminal support in doctor.
+- Inline math is not concealed: set `conceallevel=2`.
+- render-markdown.nvim overlaps math: set `latex = { enabled = false }` there.
+- tmux images do not appear: enable `allow-passthrough` and run tmux diagnostics.
+
+The project is licensed under Apache-2.0.
+
+===============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

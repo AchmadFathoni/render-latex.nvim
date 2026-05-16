@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["crates/render-latex-worker"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "1.0"
+hex = "0.4"
+png = "0.17"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+ratex-layout = { git = "https://github.com/erweixin/RaTeX", package = "ratex-layout" }
+ratex-parser = { git = "https://github.com/erweixin/RaTeX", package = "ratex-parser" }
+ratex-render = { git = "https://github.com/erweixin/RaTeX", package = "ratex-render", features = ["embed-fonts"] }
+ratex-types = { git = "https://github.com/erweixin/RaTeX", package = "ratex-types" }

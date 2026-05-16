@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: golang
+        additional_dependencies:
+          - github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+
+      - id: stylua-check
+        name: stylua --check
+        entry: stylua --check lua/ plugin/ repro/ tests/
+        language: system
+        files: ^(lua|plugin|repro|tests)/.*\.lua$|^stylua\.toml$
+        pass_filenames: false
+
+      - id: cargo-fmt-check
+        name: cargo fmt --check
+        entry: cargo fmt --all --check
+        language: system
+        files: ^(Cargo\.toml|Cargo\.lock|crates/.*\.rs)$
+        pass_filenames: false

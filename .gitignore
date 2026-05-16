@@ -1,0 +1,15 @@
+# Test/plugin-manager state
+/.tests/
+
+# Rust build output
+/target/
+
+# Local worker/runtime logs
+/render-latex-worker.log
+*.log
+
+# Neovim/editor temporary files
+*.swp
+*.swo
+*.tmp
+*~

@@ -1,0 +1,164 @@
+# render-latex.nvim
+
+[![CI](https://github.com/techwizrd/render-latex.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/techwizrd/render-latex.nvim/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/techwizrd/render-latex.nvim)](LICENSE)
+[![Neovim](https://img.shields.io/badge/Neovim-0.10%2B-57A143?logo=neovim&logoColor=white)](https://neovim.io/)
+[![Platforms](https://img.shields.io/badge/prebuilt-Linux%20%7C%20macOS%20%7C%20Windows-blue)](#requirements)
+[![Status](https://img.shields.io/badge/status-early%20release-orange)](#status)
+
+Fast display-math rendering for Markdown in Neovim, with inline math that stays smooth while editing.
+
+![render-latex.nvim demo](assets/demo.png)
+
+`render-latex.nvim` is for people who write notes, docs, research, or homework in Markdown and want equations to be readable without giving up plain-text editing. Raw LaTeX stays in your buffer. Display equations render when your terminal supports images. Inline math stays lightweight and cursor-friendly. Compatible with [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) and [obsidian.nvim](https://github.com/epwalsh/obsidian.nvim/).
+
+## Quickstart
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  "techwizrd/render-latex.nvim",
+  ft = "markdown",
+  opts = {},
+}
+```
+
+With `vim.pack`:
+
+```lua
+vim.pack.add({
+  "https://github.com/techwizrd/render-latex.nvim",
+})
+```
+
+Open a Markdown file with display math:
+
+```markdown
+$$
+\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+$$
+```
+
+The plugin sets itself up with useful defaults and installs the matching prebuilt worker in the background on first load. If anything looks off, run:
+
+```vim
+:RenderLatex doctor
+:checkhealth render_latex
+```
+
+## What You Get
+
+- Display math blocks like `$$ ... $$` and `\[ ... \]` rendered as transparent PNG images.
+- Inline math like `$x^2$` handled with fast conceal/highlight fallback, not image flicker.
+- A persistent Rust worker that starts once, batches visible equations, and keeps a cache warm.
+- Automatic worker install for common platforms, with source-build fallback when needed.
+- Safe backend selection for Neovim image support or Kitty graphics, including tmux passthrough.
+- Compatibility with Markdown note-taking workflows instead of trying to own the whole buffer.
+
+## Why This Exists
+
+Markdown notes with equations should be pleasant to read and safe to edit. This plugin tries to make LaTeX math feel native in Neovim while keeping the buffer editable. The source is still plain Markdown, and the rendered image is just a helpful view of display math.
+
+It is intentionally narrow. It does not try to replace Markdown renderers, note-taking plugins, or a full LaTeX workflow. It focuses on one job: make equations in Markdown easier to live with.
+
+## Requirements
+
+- Neovim 0.10+ with `vim.system`, `vim.uv`, `vim.fs`, extmarks, and Treesitter APIs.
+- A display-image backend: Neovim image API support or a Kitty graphics-compatible terminal.
+- For tmux image rendering: `set -g allow-passthrough on`.
+- Prebuilt workers are provided for Linux x64, macOS x64, macOS arm64, and Windows x64.
+
+Rust is only needed for development, source builds, or unsupported prebuilt platforms such as Linux ARM64.
+
+## Configuration
+
+No configuration is required for the default experience. These are the most common optional settings:
+
+```lua
+require("render_latex").setup({
+  render = {
+    preset = "match_text", -- "compact" or "presentation"
+    inline = "conceal", -- "content", "highlight", or false
+    inline_symbols = true,
+    hide_on_cmdline = false,
+  },
+})
+```
+
+For the best inline math fallback experience:
+
+```lua
+vim.opt.conceallevel = 2
+vim.opt.concealcursor = "nc"
+```
+
+If you pin plugin versions, pin the worker release too:
+
+```lua
+require("render_latex").setup({
+  install = { version = "v0.1.0" },
+})
+```
+
+## Useful Commands
+
+- `:RenderLatex doctor` opens a readable diagnostics buffer.
+- `:RenderLatex install` downloads the prebuilt worker for your platform.
+- `:RenderLatex refresh` queues a fresh render for the current buffer.
+- `:RenderLatex equation_toggle` toggles the current display equation between raw and rendered modes.
+- `:RenderLatex tmux_check` checks tmux image-rendering settings.
+
+Run `:help render-latex` for the full command and option reference.
+
+## Compatibility
+
+### obsidian.nvim
+
+No special configuration is required. `render-latex.nvim` ignores YAML frontmatter, fenced code blocks, inline code spans, Obsidian comments, and Markdown indented code blocks. Display math inside Obsidian callouts and blockquotes is supported.
+
+### render-markdown.nvim
+
+Let `render-markdown.nvim` handle Markdown structure and let `render-latex.nvim` own LaTeX rendering:
+
+```lua
+require("render-markdown").setup({
+  latex = { enabled = false },
+})
+```
+
+`render-latex.nvim` does not mutate other plugins' configuration. `:RenderLatex status`, `:RenderLatex doctor`, and `:checkhealth render_latex` report likely conflicts.
+
+## Troubleshooting
+
+Start with `:RenderLatex doctor` or `:checkhealth render_latex`. They report the detected platform, worker path, image backend, tmux state, conceal settings, and integration warnings.
+
+If worker auto-install fails because of a proxy, firewall, offline use, or unsupported platform:
+
+```lua
+require("render_latex").setup({
+  install = { auto = false },
+})
+```
+
+Then use one of these options:
+
+- Run `:RenderLatex install` after network access is available.
+- Run `:RenderLatex build` with a local Rust toolchain.
+- Download or build the worker yourself and set `worker.bin = "/path/to/render-latex-worker"`.
+
+Terminal support still matters after the worker is installed. Use Neovim's image API when available, or a Kitty graphics-compatible terminal. Inside tmux, set `set -g allow-passthrough on`.
+
+## Acknowledgements
+
+`render-latex.nvim` stands on other people's work. [RaTeX](https://github.com/erweixin/RaTeX) does the hard layout and rendering work in the Rust worker. [`render-markdown.nvim`](https://github.com/MeanderingProgrammer/render-markdown.nvim) and [`obsidian.nvim`](https://github.com/epwalsh/obsidian.nvim) shaped how this plugin approaches compatibility: it should complement Markdown and note-taking workflows, not fight them. Feedback and interest from [`r/neovim`](https://reddit.com/r/neovim) helped motivate me to get an initial release together.
+
+## Status
+
+This is an early release. The defaults are meant to be fast and user-friendly, but option names may still change before `v1.0.0`.
+
+## Documentation
+
+- Full docs: `:help render-latex`
+- Contributing and development: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- License: Apache-2.0
