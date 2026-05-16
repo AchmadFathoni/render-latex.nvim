@@ -10,6 +10,10 @@ Fast display-math rendering for Markdown in Neovim, with inline math that stays 
 
 ![render-latex.nvim demo](assets/demo.png)
 
+<p align="center">
+  <a href="assets/demo-light-01.png">Light mode screenshot 1</a> · <a href="assets/demo-light-02.png">Light mode screenshot 2</a> · <a href="assets/demo-dark-02.png">Dark mode screenshot</a>
+</p>
+
 `render-latex.nvim` is for people who write notes, docs, research, or homework in Markdown and want equations to be readable without giving up plain-text editing. Raw LaTeX stays in your buffer. Display equations render when your terminal supports images. Inline math stays lightweight and cursor-friendly. Compatible with [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim) and [obsidian.nvim](https://github.com/epwalsh/obsidian.nvim/).
 
 ## Quickstart
@@ -155,7 +159,26 @@ Terminal support still matters after the worker is installed. Use Neovim's image
 
 ## Status
 
-This is an early release. The defaults are meant to be fast and user-friendly, but option names may still change before `v1.0.0`.
+This is an early release. The defaults are meant to be fast and friendly, but option names may still change before `v1.0.0`.
+
+Before the first stable release, I still want to:
+
+- [ ] Verify GitHub CI and release assets on Linux, macOS, and Windows.
+- [ ] Confirm `:RenderLatex install` works from a clean install.
+- [ ] Smoke-test the documented lazy.nvim and `vim.pack` setup paths.
+- [ ] Check whether downloaded workers hit Gatekeeper/quarantine issues on macOS.
+
+After that, the main things I want to explore are:
+
+- [ ] Folding support.
+- [ ] An experimental mode for rendering inline display math.
+- [ ] SVG rendering, once Neovim or custom providers can handle it well.
+- [ ] Moving more render-queue logic into the Rust worker.
+- [ ] Worker-side parsing/indexing for large notes.
+- [ ] Kitty placeholder-based rendering for better tmux and scroll behavior.
+- [ ] Checksum verification for downloaded workers.
+- [ ] Async `:RenderLatex build` for source-build workflows.
+- [ ] Moving doctor/tmux diagnostic formatting out of `init.lua` if it keeps growing.
 
 ## Documentation
 
