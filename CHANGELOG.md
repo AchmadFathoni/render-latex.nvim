@@ -6,6 +6,17 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 
 ## Unreleased
 
+## 0.1.0-rc2 - 2026-05-16
+
+### Changed
+
+- Split Rust checks out of the Neovim CI matrix so stable Neovim coverage only runs plugin tests.
+
+### Fixed
+
+- Fixed image backend tests on stable Neovim versions where `vim.ui.img` is unavailable.
+- Avoided noisy first-run render warnings while the prebuilt worker is still installing in the background.
+
 ## 0.1.0-rc1 - 2026-05-16
 
 ### Added
