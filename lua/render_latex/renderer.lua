@@ -44,6 +44,19 @@ end
 ---@type table<integer, render_latex.BufferState>
 local buffers = {}
 
+ImageBackend.on_change(function(status)
+  last_backend_warning = nil
+  if status ~= "supported" then
+    return
+  end
+
+  for bufnr, state in pairs(buffers) do
+    if state.attached and Util.buf_is_valid(bufnr) then
+      M.queue(bufnr)
+    end
+  end
+end)
+
 local function get_buffer_state(bufnr)
   local state = buffers[bufnr]
   if state ~= nil then

@@ -810,6 +810,32 @@ describe("render_latex.integrations", function()
 end)
 
 describe("render_latex.image_backend", function()
+  local previous_kitty
+  local previous_wezterm
+  local previous_term
+  local previous_tmux
+  local previous_send
+
+  before_each(function()
+    previous_kitty = vim.env.KITTY_WINDOW_ID
+    previous_wezterm = vim.env.WEZTERM_EXECUTABLE
+    previous_term = vim.env.TERM
+    previous_tmux = vim.env.TMUX
+    previous_send = vim.api.nvim_ui_send
+    image_backend.reset_for_tests()
+    config.setup()
+  end)
+
+  after_each(function()
+    vim.env.KITTY_WINDOW_ID = previous_kitty
+    vim.env.WEZTERM_EXECUTABLE = previous_wezterm
+    vim.env.TERM = previous_term
+    vim.env.TMUX = previous_tmux
+    vim.api.nvim_ui_send = previous_send
+    image_backend.reset_for_tests()
+    config.setup()
+  end)
+
   it("uses explicit nvim backend when available", function()
     local previous_img = vim.ui.img
     vim.ui.img = {
@@ -846,10 +872,6 @@ describe("render_latex.image_backend", function()
 
   it("reports unavailable explicit kitty backend without terminal support", function()
     config.setup({ image = { backend = "kitty" } })
-    local previous_kitty = vim.env.KITTY_WINDOW_ID
-    local previous_wezterm = vim.env.WEZTERM_EXECUTABLE
-    local previous_term = vim.env.TERM
-    local previous_tmux = vim.env.TMUX
     vim.env.KITTY_WINDOW_ID = nil
     vim.env.WEZTERM_EXECUTABLE = nil
     vim.env.TERM = "xterm-256color"
@@ -857,14 +879,77 @@ describe("render_latex.image_backend", function()
 
     local backend, _, reason = image_backend.get()
 
-    vim.env.KITTY_WINDOW_ID = previous_kitty
-    vim.env.WEZTERM_EXECUTABLE = previous_wezterm
-    vim.env.TERM = previous_term
-    vim.env.TMUX = previous_tmux
-    config.setup()
+    assert.is_nil(backend)
+    assert.is_truthy(reason)
+  end)
+
+  it("probes kitty support for unknown compatible terminals", function()
+    local sent = {}
+    config.setup({ image = { backend = "kitty" } })
+    vim.env.KITTY_WINDOW_ID = nil
+    vim.env.WEZTERM_EXECUTABLE = nil
+    vim.env.TERM = "xterm-ghostty"
+    vim.env.TMUX = nil
+    vim.api.nvim_ui_send = function(sequence)
+      sent[#sent + 1] = sequence
+    end
+
+    local backend, _, reason = image_backend.get()
+    local status = image_backend.status()
 
     assert.is_nil(backend)
     assert.is_truthy(reason)
+    assert.is_true(status.kitty_probing)
+    assert.are.equal(1, #sent)
+    assert.is_truthy(sent[1]:match("\027_Gi=%d+,s=1,v=1,a=q,t=d,f=24;AAAA\027\\\027%[c"))
+  end)
+
+  it("caches kitty support after a successful protocol response", function()
+    local sent = {}
+    config.setup({ image = { backend = "kitty" } })
+    vim.env.KITTY_WINDOW_ID = nil
+    vim.env.WEZTERM_EXECUTABLE = nil
+    vim.env.TERM = "xterm-ghostty"
+    vim.env.TMUX = nil
+    vim.api.nvim_ui_send = function(sequence)
+      sent[#sent + 1] = sequence
+    end
+
+    local backend = image_backend.get()
+    local request_id = sent[1]:match("\027_Gi=(%d+),")
+    vim.api.nvim_exec_autocmds("TermResponse", {
+      data = { sequence = ("\027_Gi=%s;OK\027\\"):format(request_id) },
+    })
+
+    backend = image_backend.get()
+
+    assert.is_truthy(backend)
+    assert.is_false(image_backend.status().kitty_probing)
+    assert.are.equal(1, #sent)
+  end)
+
+  it("marks kitty support unavailable when DA1 arrives first", function()
+    local sent = {}
+    config.setup({ image = { backend = "kitty" } })
+    vim.env.KITTY_WINDOW_ID = nil
+    vim.env.WEZTERM_EXECUTABLE = nil
+    vim.env.TERM = "xterm-ghostty"
+    vim.env.TMUX = nil
+    vim.api.nvim_ui_send = function(sequence)
+      sent[#sent + 1] = sequence
+    end
+
+    image_backend.get()
+    vim.api.nvim_exec_autocmds("TermResponse", {
+      data = { sequence = "\027[?62;c" },
+    })
+
+    local backend, _, reason = image_backend.get()
+
+    assert.is_nil(backend)
+    assert.are.equal("kitty image protocol is not available in this terminal", reason)
+    assert.is_false(image_backend.status().kitty_probing)
+    assert.are.equal(1, #sent)
   end)
 end)
 

@@ -6,6 +6,14 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 
 ## Unreleased
 
+### Changed
+
+- Switched non-tmux Kitty graphics detection from terminal-specific environment checks to a protocol probe with cached results.
+
+### Fixed
+
+- Fixed Ghostty and other Kitty graphics-compatible terminals being reported as unsupported outside tmux.
+
 ## 0.1.0-rc2 - 2026-05-16
 
 ### Changed
