@@ -1049,6 +1049,23 @@ describe("render_latex.image_backend", function()
     assert.is_truthy(reason)
   end)
 
+  it("does not probe kitty support when nvim_ui_send is unavailable", function()
+    config.setup({ image = { backend = "kitty" } })
+    vim.env.KITTY_WINDOW_ID = nil
+    vim.env.WEZTERM_EXECUTABLE = nil
+    vim.env.TERM = "xterm-ghostty"
+    vim.env.TMUX = nil
+    vim.api.nvim_ui_send = nil
+
+    local backend, _, reason = image_backend.get()
+    local status = image_backend.status()
+
+    assert.is_nil(backend)
+    assert.are.equal("kitty image protocol is not available in this terminal", reason)
+    assert.is_false(status.kitty_probing)
+    assert.is_false(status.kitty_available)
+  end)
+
   it("probes kitty support for unknown compatible terminals", function()
     local sent = {}
     config.setup({ image = { backend = "kitty" } })

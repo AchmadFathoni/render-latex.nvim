@@ -17,6 +17,10 @@ local function use_builtin()
   return vim.ui.img ~= nil and type(vim.ui.img.set) == "function"
 end
 
+local function can_probe_kitty()
+  return type(vim.api.nvim_ui_send) == "function"
+end
+
 local function notify_listeners(status)
   for _, listener in ipairs(listeners) do
     pcall(listener, status)
@@ -41,7 +45,7 @@ local function finish_probe(status)
 end
 
 local function start_probe()
-  if is_tmux() or probe.pending or probe.status ~= "unknown" then
+  if is_tmux() or probe.pending or probe.status ~= "unknown" or not can_probe_kitty() then
     return
   end
 
