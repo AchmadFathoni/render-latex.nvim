@@ -9,6 +9,7 @@ local image_backend = require("render_latex.image_backend")
 local integrations = require("render_latex.integrations")
 local install = require("render_latex.install")
 local renderer = require("render_latex.renderer")
+local sources = require("render_latex.sources")
 local tmux = require("render_latex.tmux")
 local ui = require("render_latex.ui")
 local util = require("render_latex.util")
@@ -451,6 +452,166 @@ describe("render_latex.detect", function()
     assert.are.equal(2, #items)
     assert.are.equal(1, calls)
   end)
+
+  it("scans display math only inside requested ranges", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "$$ ignored $$",
+      "markdown start",
+      "$$",
+      "visible",
+      "$$",
+      "markdown end",
+      "$$ ignored too $$",
+    })
+
+    local equations = detect.scan_ranges(buf, {
+      { start_row = 1, end_row = 5 },
+    })
+
+    assert.are.equal(1, #equations)
+    assert.are.equal("visible", equations[1].text)
+    assert.are.equal(2, equations[1].start_row)
+    assert.are.equal(4, equations[1].end_row)
+  end)
+
+  it("does not let display math cross requested range boundaries", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "markdown",
+      "$$",
+      "x^2",
+      "code cell starts",
+      "$$",
+    })
+
+    local equations = detect.scan_ranges(buf, {
+      { start_row = 0, end_row = 2 },
+    })
+
+    assert.are.equal(0, #equations)
+  end)
+
+  it("scans multiple display ranges with one full-buffer read", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    local lines = {}
+    for index = 1, 120 do
+      lines[index] = "plain"
+    end
+    lines[10] = "$$ one $$"
+    lines[80] = "$$ two $$"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+    local original_get_lines = vim.api.nvim_buf_get_lines
+    local calls = 0
+    vim.api.nvim_buf_get_lines = function(...)
+      calls = calls + 1
+      return original_get_lines(...)
+    end
+
+    local ok, equations = pcall(detect.scan_ranges, buf, {
+      { start_row = 0, end_row = 20 },
+      { start_row = 70, end_row = 90 },
+    })
+    vim.api.nvim_buf_get_lines = original_get_lines
+
+    assert.is_true(ok)
+    assert.are.equal(2, #equations)
+    assert.are.equal(1, calls)
+  end)
+end)
+
+describe("render_latex.integrations.jupynvim", function()
+  it("extracts Markdown cell ranges from a jupynvim buffer", function()
+    local previous = package.loaded["jupynvim.notebook"]
+    local sep = "# %%[jupynvim:cell-sep]"
+    package.loaded["jupynvim.notebook"] = {
+      CELL_SEP = sep,
+      get = function()
+        return {
+          cells = {
+            { cell_type = "code" },
+            { cell_type = "markdown" },
+            { cell_type = "code" },
+            { cell_type = "markdown" },
+          },
+        }
+      end,
+    }
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "print('code')",
+      sep,
+      "# markdown",
+      "$$ visible $$",
+      sep,
+      "$$ hidden $$",
+      sep,
+      "more markdown",
+    })
+
+    local ranges = require("render_latex.integrations.jupynvim").markdown_ranges(buf)
+    package.loaded["jupynvim.notebook"] = previous
+
+    assert.are.equal(2, #ranges)
+    assert.are.equal(2, ranges[1].start_row)
+    assert.are.equal(3, ranges[1].end_row)
+    assert.are.equal(7, ranges[2].start_row)
+    assert.are.equal(7, ranges[2].end_row)
+  end)
+
+  it("is safe when jupynvim is unavailable", function()
+    local previous = package.loaded["jupynvim.notebook"]
+    package.loaded["jupynvim.notebook"] = nil
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    local jupynvim = require("render_latex.integrations.jupynvim")
+
+    assert.is_nil(jupynvim.notebook(buf))
+    assert.are.equal(0, #jupynvim.markdown_ranges(buf))
+
+    package.loaded["jupynvim.notebook"] = previous
+  end)
+
+  it("uses jupynvim Markdown cells as an experimental display source", function()
+    local previous = package.loaded["jupynvim.notebook"]
+    local sep = "# %%[jupynvim:cell-sep]"
+    package.loaded["jupynvim.notebook"] = {
+      CELL_SEP = sep,
+      get = function()
+        return {
+          cells = {
+            { cell_type = "markdown" },
+            { cell_type = "code" },
+          },
+        }
+      end,
+    }
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "python"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "$$ visible $$",
+      sep,
+      "$$ hidden $$",
+    })
+
+    local status = sources.status(buf)
+    local context = sources.render_context(buf)
+    local equations = sources.display_equations(buf)
+    local inline = sources.inline_ranges(buf, { { start_row = 0, end_row = 0 } })
+    package.loaded["jupynvim.notebook"] = previous
+
+    assert.are.equal("jupynvim", status.active)
+    assert.is_true(status.experimental)
+    assert.are.equal(2, context.image_margin_cols)
+    assert.is_true(context.suppress_default_equation_labels)
+    assert.is_true(context.clear_source_line_background)
+    assert.are.equal(1, #equations)
+    assert.are.equal("visible", equations[1].text)
+    assert.are.equal(0, #inline)
+  end)
 end)
 
 describe("render_latex.annotations", function()
@@ -776,6 +937,17 @@ describe("render_latex.config", function()
 
     assert.is_false(config.install.auto)
     assert.are.equal("techwizrd/render-latex.nvim", config.install.repository)
+  end)
+
+  it("tracks explicitly configured nested options", function()
+    config.setup({ render = { equation_labels = false } })
+
+    assert.is_true(config.is_explicit("render"))
+    assert.is_true(config.is_explicit("render.equation_labels"))
+    assert.is_false(config.is_explicit("render.inline"))
+
+    config.setup()
+    assert.is_false(config.is_explicit("render.equation_labels"))
   end)
 end)
 
@@ -1896,6 +2068,95 @@ describe("render_latex.worker", function()
 end)
 
 describe("render_latex.renderer", function()
+  local function with_jupynvim_render(opts, assertions)
+    opts = opts or {}
+    local previous_notebook = package.loaded["jupynvim.notebook"]
+    local previous_backend_status = image_backend.status
+    local previous_backend_get = image_backend.get
+    local previous_request_batch = worker.request_batch
+    local previous_viewport_range = viewport.viewport_range
+    local previous_visible_text_bounds = viewport.visible_text_bounds
+    local previous_readblob = vim.fn.readblob
+    local captured_opts
+    local request_count = 0
+    local sep = "# %%[jupynvim:cell-sep]"
+
+    package.loaded["jupynvim.notebook"] = {
+      CELL_SEP = sep,
+      get = function()
+        return { cells = { { cell_type = "markdown" } } }
+      end,
+    }
+    image_backend.status = function()
+      return { available = true, name = "nvim" }
+    end
+    image_backend.get = function()
+      return {
+        set = function(_, set_opts)
+          captured_opts = set_opts
+          return 1
+        end,
+        del = function() end,
+      },
+        "nvim"
+    end
+    worker.request_batch = function(_, callback)
+      request_count = request_count + 1
+      callback({
+        {
+          error = nil,
+          result = {
+            width_px = opts.width_px or 500,
+            height_px = 20,
+            png_path = "/tmp/render-latex-jupynvim-test.png",
+            cache_key = "jupynvim-test-" .. request_count,
+          },
+        },
+      }, nil)
+    end
+    viewport.viewport_range = function()
+      return 0, 3
+    end
+    viewport.visible_text_bounds = function()
+      return 1, 20
+    end
+    vim.fn.readblob = function()
+      return "png"
+    end
+
+    local ok, err = pcall(function()
+      config.setup(opts.config)
+      local buf = vim.api.nvim_create_buf(true, true)
+      vim.api.nvim_set_current_buf(buf)
+      vim.bo[buf].filetype = "python"
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "$$", "x^2", "$$", "after" })
+      vim.api.nvim_win_set_cursor(0, { 4, 0 })
+
+      renderer.set_suppressed("cmdline", false)
+      renderer.set_suppressed("floating", false)
+      renderer.attach(buf)
+      renderer.render(buf)
+      vim.wait(100, function()
+        return captured_opts ~= nil
+      end)
+
+      assertions(buf, captured_opts)
+    end)
+
+    package.loaded["jupynvim.notebook"] = previous_notebook
+    image_backend.status = previous_backend_status
+    image_backend.get = previous_backend_get
+    worker.request_batch = previous_request_batch
+    viewport.viewport_range = previous_viewport_range
+    viewport.visible_text_bounds = previous_visible_text_bounds
+    vim.fn.readblob = previous_readblob
+    config.setup()
+
+    if not ok then
+      error(err)
+    end
+  end
+
   it("resolves automatic render options", function()
     local opts = renderer.resolved_options()
     assert.is_truthy(opts.foreground)
@@ -2030,6 +2291,40 @@ describe("render_latex.renderer", function()
     vim.ui.img = previous_img
 
     assert.are.equal(2, request_count)
+  end)
+
+  it("uses jupynvim cell margins and suppresses default labels", function()
+    with_jupynvim_render({}, function(buf, captured_opts)
+      assert.is_truthy(captured_opts)
+      assert.is_true(captured_opts.col >= 3)
+
+      local marks = vim.api.nvim_buf_get_extmarks(buf, config.ns, 0, -1, { details = true })
+      local line_hl_marks = 0
+      for _, mark in ipairs(marks) do
+        local details = mark[4]
+        if details.line_hl_group == "Normal" then
+          line_hl_marks = line_hl_marks + 1
+        end
+        assert.not_equal({ { "Eq. 1", "Comment" } }, details.virt_text)
+      end
+
+      assert.are.equal(3, line_hl_marks)
+    end)
+  end)
+
+  it("honors explicitly enabled jupynvim equation labels", function()
+    with_jupynvim_render({ config = { render = { equation_labels = "right" } } }, function(buf)
+      local marks = vim.api.nvim_buf_get_extmarks(buf, config.ns, 0, -1, { details = true })
+      local found_label = false
+      for _, mark in ipairs(marks) do
+        if vim.deep_equal(mark[4].virt_text, { { "Eq. 1", "Comment" } }) then
+          found_label = true
+          break
+        end
+      end
+
+      assert.is_true(found_label)
+    end)
   end)
 
   it("coalesces repeated scroll refresh requests", function()

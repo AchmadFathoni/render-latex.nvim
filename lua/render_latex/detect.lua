@@ -1,6 +1,7 @@
 local Util = require("render_latex.util")
 
 local M = {}
+local unpack = table.unpack or unpack
 
 local ok_query, latex_block_query = pcall(
   vim.treesitter.query.parse,
@@ -336,7 +337,13 @@ local function treesitter_equations(bufnr, context, start_row, end_row)
           delimiter,
           has_blockquote_line(raw_lines)
       end)
-      if success and capture_start ~= nil and not context.ignored[capture_start + 1] then
+      if
+        success
+        and capture_start ~= nil
+        and capture_start >= start_row
+        and capture_end <= end_row + 1
+        and not context.ignored[capture_start + 1]
+      then
         equations[#equations + 1] =
           finalize_text(text, capture_start, capture_end, delimiter, quoted)
       end
@@ -358,7 +365,7 @@ local function bracket_equations(context, start_row, end_row)
       local block_start = index - 1
       local end_index = index
       local found_end = false
-      while end_index < #lines do
+      while end_index < limit do
         if math_line(lines[end_index]):match("\\%]$") then
           found_end = true
           break
@@ -400,7 +407,7 @@ local function dollar_equations(context, start_row, end_row)
       else
         local end_index = index
         local found_end = false
-        while end_index < #lines do
+        while end_index < limit do
           end_index = end_index + 1
           block[#block + 1] = lines[end_index]
           if math_line(lines[end_index]):match("%$%$$") then
@@ -664,6 +671,31 @@ end
 ---@return table[]
 function M.scan(bufnr)
   return M.scan_range(bufnr, 0, vim.api.nvim_buf_line_count(bufnr) - 1)
+end
+
+---@param bufnr integer
+---@param ranges { start_row: integer, end_row: integer }[]
+---@return table[]
+function M.scan_ranges(bufnr, ranges)
+  if #ranges == 0 then
+    return {}
+  end
+
+  local context = scan_context(bufnr)
+  local groups = {}
+  for _, range in ipairs(ranges) do
+    local start_row = math.max(0, range.start_row or 0)
+    local end_row = math.min(#context.lines - 1, range.end_row or -1)
+    if end_row >= start_row then
+      groups[#groups + 1] = merge_unique_equations(
+        treesitter_equations(bufnr, context, start_row, end_row),
+        dollar_equations(context, start_row, end_row),
+        bracket_equations(context, start_row, end_row)
+      )
+    end
+  end
+
+  return sort_equations(merge_unique_equations(unpack(groups)))
 end
 
 ---@param bufnr integer

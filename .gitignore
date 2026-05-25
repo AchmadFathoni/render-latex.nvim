@@ -1,5 +1,6 @@
 # Test/plugin-manager state
 /.tests/
+/.venv/
 
 # Rust build output
 /target/

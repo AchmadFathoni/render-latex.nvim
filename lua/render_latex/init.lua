@@ -19,7 +19,7 @@ end
 
 local function should_attach(bufnr)
   local Config = require("render_latex.config")
-  return Config.enabled and Config.is_filetype_supported(vim.bo[bufnr].filetype)
+  return Config.enabled and require("render_latex.sources").supports(bufnr)
 end
 
 local function register_autocmds()
@@ -245,8 +245,13 @@ function M.status()
   status.image_backend = require("render_latex.image_backend").status()
   status.suppression = require("render_latex.renderer").suppression_status()
   status.integrations = require("render_latex.integrations").status(vim.api.nvim_get_current_buf())
+  status.source = require("render_latex.sources").status(vim.api.nvim_get_current_buf())
   require("render_latex.util").info(vim.inspect(status))
   return status
+end
+
+function M.register_source(source)
+  require("render_latex.sources").register(source)
 end
 
 function M.doctor_lines()
@@ -265,6 +270,7 @@ function M.doctor_lines()
   local install = Install.status()
   local integrations = Integrations.status(bufnr)
   local render = Renderer.resolved_options()
+  local source = require("render_latex.sources").status(bufnr)
   local suppression = Renderer.suppression_status()
   local filetype = vim.bo[bufnr].filetype
 
@@ -276,6 +282,8 @@ function M.doctor_lines()
     "enabled: " .. tostring(Config.enabled),
     "current filetype: " .. (filetype ~= "" and filetype or "<none>"),
     "filetype supported: " .. tostring(Config.is_filetype_supported(filetype)),
+    "active source: " .. tostring(source.active or "<none>"),
+    "experimental source: " .. tostring(source.experimental),
     "required Neovim APIs: " .. (compat.supported and "ok" or "missing"),
   }
 
@@ -356,6 +364,17 @@ function M.doctor_lines()
   if render_markdown.action ~= nil then
     lines[#lines + 1] = "suggested action: " .. render_markdown.action
   end
+
+  local jupynvim = integrations.jupynvim
+  vim.list_extend(lines, {
+    "",
+    "## jupynvim",
+    "",
+    "loaded: " .. tostring(jupynvim.loaded),
+    "notebook buffer: " .. tostring(jupynvim.notebook),
+    "markdown ranges: " .. tostring(jupynvim.markdown_ranges),
+    "experimental: " .. tostring(jupynvim.experimental),
+  })
 
   local obsidian = integrations.obsidian
   vim.list_extend(lines, {

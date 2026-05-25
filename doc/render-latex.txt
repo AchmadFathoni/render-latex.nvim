@@ -365,6 +365,32 @@ render-latex.nvim does not mutate other plugins' configuration. Compatibility
 diagnostics only run in manual commands and health checks, not in the render
 loop.
 
+JUPYNVIM EXPERIMENTAL                         *render-latex-jupynvim*
+
+render-latex.nvim has an experimental source integration for jupynvim. When a
+jupynvim notebook buffer is detected, display math inside Markdown cells is
+rendered as images. Code cells are ignored, and inline math inside notebook
+Markdown cells is left to jupynvim for now.
+
+Other plugins can expose Markdown-like regions through the experimental source
+API:
+>
+  require("render_latex").register_source({
+    name = "my-plugin",
+    attach = function(bufnr)
+      return true -- return true only for buffers this source owns
+    end,
+    display_ranges = function(bufnr)
+      return {
+        { start_row = 0, end_row = 10 },
+      }
+    end,
+    inline = false,
+  })
+<
+
+This API is intentionally experimental and may change before v1.0.0.
+
 ===============================================================================
 TMUX                                                      *render-latex-tmux*
 

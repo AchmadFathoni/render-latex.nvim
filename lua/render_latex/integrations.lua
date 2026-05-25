@@ -96,6 +96,7 @@ function M.status(bufnr)
   return {
     render_markdown = render_markdown_status(bufnr),
     obsidian = obsidian_status(bufnr),
+    jupynvim = require("render_latex.integrations.jupynvim").status(bufnr),
   }
 end
 
@@ -106,6 +107,10 @@ end
 
 function M.obsidian(bufnr)
   return obsidian_status(bufnr)
+end
+
+function M.jupynvim(bufnr)
+  return require("render_latex.integrations.jupynvim").status(bufnr)
 end
 
 return M

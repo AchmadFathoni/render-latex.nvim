@@ -100,6 +100,17 @@ local defaults = {
 }
 
 local config = vim.deepcopy(defaults)
+local explicit = {}
+
+local function collect_explicit(opts, prefix, result)
+  for key, value in pairs(opts or {}) do
+    local path = prefix ~= "" and (prefix .. "." .. key) or key
+    result[path] = true
+    if type(value) == "table" then
+      collect_explicit(value, path, result)
+    end
+  end
+end
 
 local function validate_enum(name, value, allowed)
   if not vim.tbl_contains(allowed, value) then
@@ -130,6 +141,8 @@ setmetatable(M, {
 
 ---@param opts? render_latex.UserConfig
 function M.setup(opts)
+  explicit = {}
+  collect_explicit(opts or {}, "", explicit)
   config = vim.tbl_deep_extend("force", {}, vim.deepcopy(defaults), opts or {})
 
   vim.validate({
@@ -197,6 +210,10 @@ end
 
 function M.values()
   return vim.deepcopy(config)
+end
+
+function M.is_explicit(path)
+  return explicit[path] == true
 end
 
 ---@param enabled boolean

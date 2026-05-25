@@ -2,6 +2,7 @@ local Config = require("render_latex.config")
 local Annotations = require("render_latex.annotations")
 local Detect = require("render_latex.detect")
 local ImageBackend = require("render_latex.image_backend")
+local Sources = require("render_latex.sources")
 local Util = require("render_latex.util")
 local Viewport = require("render_latex.viewport")
 local Worker = require("render_latex.worker")
@@ -44,9 +45,12 @@ end
 ---@field delayed_render table<string, boolean>
 ---@field placeholders table<string, integer>
 ---@field labels table<string, integer>
+---@field source_line_marks table<string, integer[]>
 ---@field mark_layouts table<string, string>
 ---@field label_layouts table<string, string>
 ---@field viewports table<integer, { top: integer, bottom: integer, direction: 'up'|'down'|'still' }>
+---@field source_dirty boolean
+---@field source_revision string?
 ---@field scroll_scheduled boolean
 ---@field worker_retries integer
 ---@field worker_retry_scheduled boolean
@@ -93,9 +97,12 @@ local function get_buffer_state(bufnr)
     delayed_render = {},
     placeholders = {},
     labels = {},
+    source_line_marks = {},
     mark_layouts = {},
     label_layouts = {},
     viewports = {},
+    source_dirty = false,
+    source_revision = nil,
     scroll_scheduled = false,
     worker_retries = 0,
     worker_retry_scheduled = false,
@@ -265,8 +272,21 @@ local function clear_marks(bufnr)
     return
   end
   Annotations.clear_marks(bufnr, Config.ns, state)
+  for _, mark_ids in pairs(state.source_line_marks) do
+    for _, mark_id in ipairs(mark_ids) do
+      pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, mark_id)
+    end
+  end
+  state.source_line_marks = {}
   state.mark_layouts = {}
   state.label_layouts = {}
+end
+
+local function clear_source_line_marks(bufnr, state, key)
+  for _, mark_id in ipairs(state.source_line_marks[key] or {}) do
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, mark_id)
+  end
+  state.source_line_marks[key] = nil
 end
 
 local function clear_equation_display(bufnr, key, backend, backend_resolved)
@@ -280,6 +300,7 @@ local function clear_equation_display(bufnr, key, backend, backend_resolved)
     pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, mark_id)
     state.marks[key] = nil
   end
+  clear_source_line_marks(bufnr, state, key)
   state.mark_layouts[key] = nil
   Annotations.clear_placeholder(bufnr, Config.ns, state, key)
   Annotations.clear_label(bufnr, Config.ns, state, key)
@@ -342,8 +363,18 @@ end
 
 equations = function(bufnr)
   local state = get_buffer_state(bufnr)
+  if not Sources.incremental(bufnr) then
+    local revision = Sources.revision(bufnr)
+    if state.source_dirty or not state.scanned or revision ~= state.source_revision then
+      state.equations = Sources.display_equations(bufnr)
+      state.source_dirty = false
+      state.source_revision = revision
+      state.scanned = true
+    end
+    return state.equations
+  end
   if not state.scanned then
-    state.equations = Detect.scan(bufnr)
+    state.equations = Sources.display_equations(bufnr)
     state.scanned = true
   end
   return state.equations
@@ -353,7 +384,7 @@ local function equation_content_hash(equation)
   return Util.sha256(equation.text)
 end
 
-local function inline_ranges(bufnr)
+local function visible_inline_ranges(bufnr)
   local ranges = {}
   local line_count = vim.api.nvim_buf_line_count(bufnr)
   for _, winid in ipairs(vim.fn.win_findbuf(bufnr)) do
@@ -366,7 +397,7 @@ local function inline_ranges(bufnr)
   if #ranges == 0 then
     return nil
   end
-  return ranges
+  return Sources.inline_ranges(bufnr, ranges)
 end
 
 local function failure_matches(failure, content_hash, render_fingerprint)
@@ -448,6 +479,8 @@ function M.clear(bufnr)
     state.failures = {}
     state.manual_raw = {}
     state.viewports = {}
+    state.source_dirty = false
+    state.source_revision = nil
     state.scroll_scheduled = false
     for key, _ in pairs(state.exit_timers) do
       cancel_delayed_render(state, key)
@@ -475,6 +508,8 @@ function M.clear_all()
     state.failures = {}
     state.manual_raw = {}
     state.viewports = {}
+    state.source_dirty = false
+    state.source_revision = nil
     state.scroll_scheduled = false
     for key, _ in pairs(state.exit_timers) do
       cancel_delayed_render(state, key)
@@ -582,10 +617,16 @@ end
 
 local function ensure_mark(bufnr, equation, meta)
   local state = get_buffer_state(bufnr)
+  local context = Sources.render_context(bufnr)
   local source_lines = equation.end_row - equation.start_row + 1
   local reserved = math.max(0, meta.height_cells - source_lines)
-  local layout =
-    table.concat({ equation.start_row, equation.end_row, reserved, Config.conceal and 1 or 0 }, ":")
+  local layout = table.concat({
+    equation.start_row,
+    equation.end_row,
+    reserved,
+    Config.conceal and 1 or 0,
+    context.clear_source_line_background and 1 or 0,
+  }, ":")
   if state.marks[equation.key] ~= nil and state.mark_layouts[equation.key] == layout then
     return
   end
@@ -598,6 +639,10 @@ local function ensure_mark(bufnr, equation, meta)
   if state.marks[equation.key] ~= nil then
     pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, state.marks[equation.key])
   end
+  for _, mark_id in ipairs(state.source_line_marks[equation.key] or {}) do
+    pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, mark_id)
+  end
+  state.source_line_marks[equation.key] = {}
 
   state.marks[equation.key] =
     vim.api.nvim_buf_set_extmark(bufnr, Config.ns, equation.start_row, 0, {
@@ -608,6 +653,15 @@ local function ensure_mark(bufnr, equation, meta)
       hl_mode = "combine",
       priority = 250,
     })
+  if context.clear_source_line_background then
+    for row = equation.start_row, equation.end_row do
+      state.source_line_marks[equation.key][#state.source_line_marks[equation.key] + 1] =
+        vim.api.nvim_buf_set_extmark(bufnr, Config.ns, row, 0, {
+          line_hl_group = "Normal",
+          priority = 255,
+        })
+    end
+  end
   state.mark_layouts[equation.key] = layout
 end
 
@@ -672,6 +726,20 @@ local function visible_equations_from_ranges(indexed_equations, ranges)
   return visible
 end
 
+local function should_suppress_label(bufnr)
+  local context = Sources.render_context(bufnr)
+  return context.suppress_default_equation_labels
+    and not Config.is_explicit("render.equation_labels")
+end
+
+local function update_label(bufnr, state, equation, visible_index)
+  if should_suppress_label(bufnr) then
+    Annotations.clear_label(bufnr, Config.ns, state, equation.key)
+    return
+  end
+  Annotations.set_equation_label(bufnr, Config.ns, state, equation, visible_index)
+end
+
 local function update_image(bufnr, winid, equation, meta, backend, window)
   if not Util.win_is_valid(winid) then
     return false
@@ -698,8 +766,10 @@ local function update_image(bufnr, winid, equation, meta, backend, window)
   state.images[winid] = state.images[winid] or {}
   state.placements[winid] = state.placements[winid] or {}
 
-  local width = window.width
-  local col = position.col + math.max(0, math.floor((width - meta.width_cells) / 2))
+  local context = Sources.render_context(bufnr)
+  local margin = context.image_margin_cols or 0
+  local width = math.max(1, window.width - margin * 2)
+  local col = position.col + margin + math.max(0, math.floor((width - meta.width_cells) / 2))
   local opts = {
     row = row,
     col = col,
@@ -762,6 +832,7 @@ local function cleanup_inactive(state, bufnr, active, active_images, backend)
       pcall(vim.api.nvim_buf_del_extmark, bufnr, Config.ns, mark_id)
       state.marks[key] = nil
       state.mark_layouts[key] = nil
+      clear_source_line_marks(bufnr, state, key)
     end
   end
 
@@ -836,7 +907,7 @@ local function update_existing_visible(bufnr, indexed_equations, snapshot)
         needs_render = true
       else
         ensure_mark(bufnr, equation, meta)
-        Annotations.set_equation_label(bufnr, Config.ns, state, equation, visible_index)
+        update_label(bufnr, state, equation, visible_index)
         for _, winid in ipairs(snapshot.winids) do
           if update_image(bufnr, winid, equation, meta, backend, snapshot.windows[winid]) then
             active_images[winid] = active_images[winid] or {}
@@ -953,7 +1024,7 @@ function M.render(bufnr)
     return
   end
   local limits = Viewport.render_limits(vim.api.nvim_buf_line_count(bufnr))
-  if not Config.enabled or not Config.is_filetype_supported(vim.bo[bufnr].filetype) then
+  if not Config.enabled or not Sources.supports(bufnr) then
     M.clear(bufnr)
     return
   end
@@ -968,7 +1039,7 @@ function M.render(bufnr)
   local state = get_buffer_state(bufnr)
   local indexed_equations = equations(bufnr)
   prune_stale_state(state, indexed_equations)
-  Annotations.render_inline_fallback(bufnr, Config.ns, state, inline_ranges(bufnr))
+  Annotations.render_inline_fallback(bufnr, Config.ns, state, visible_inline_ranges(bufnr))
   local snapshot = collect_window_snapshot(bufnr, state.viewports, limits.prefetch)
   local focused_keys = sync_focus(bufnr, indexed_equations, snapshot)
   local active = {}
@@ -1014,7 +1085,7 @@ function M.render(bufnr)
         batch[#batch + 1] = equation
       else
         ensure_mark(bufnr, equation, meta)
-        Annotations.set_equation_label(bufnr, Config.ns, state, equation, visible_index)
+        update_label(bufnr, state, equation, visible_index)
         for _, winid in ipairs(snapshot.winids) do
           if update_image(bufnr, winid, equation, meta, backend, snapshot.windows[winid]) then
             active_images[winid] = active_images[winid] or {}
@@ -1039,11 +1110,7 @@ function M.refresh_visible(bufnr)
   end
 
   local limits = Viewport.render_limits(vim.api.nvim_buf_line_count(bufnr))
-  if
-    not Config.enabled
-    or not Config.is_filetype_supported(vim.bo[bufnr].filetype)
-    or limits.disabled
-  then
+  if not Config.enabled or not Sources.supports(bufnr) or limits.disabled then
     return
   end
   if not Config.should_render_mode(vim.api.nvim_get_mode().mode) then
@@ -1112,8 +1179,10 @@ function M.attach(bufnr)
     return
   end
 
-  state.equations = Detect.scan(bufnr)
+  state.equations = Sources.display_equations(bufnr)
   state.scanned = true
+  state.source_dirty = false
+  state.source_revision = Sources.revision(bufnr)
   state.attached = true
 
   vim.api.nvim_buf_attach(bufnr, false, {
@@ -1122,9 +1191,14 @@ function M.attach(bufnr)
       if current == nil then
         return true
       end
-      current.equations =
-        Detect.update(current.equations, buffer, firstline, lastline - 1, new_lastline - 1)
-      current.scanned = true
+      if Sources.incremental(buffer) then
+        current.equations =
+          Detect.update(current.equations, buffer, firstline, lastline - 1, new_lastline - 1)
+        current.scanned = true
+      else
+        current.source_dirty = true
+        current.scanned = false
+      end
     end,
     on_detach = function(_, buffer)
       local current = buffers[buffer]

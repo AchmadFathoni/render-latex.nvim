@@ -1,4 +1,4 @@
-.PHONY: test lint actionlint format typecheck check build-worker run-worker rustfmt clippy rust-test smoke-base smoke-long-note smoke-light-theme smoke-obsidian smoke-render-markdown smoke-render-markdown-rich smoke-doctor smoke-health smoke-help smoke-integrations smoke-repros
+.PHONY: test lint actionlint format typecheck check build-worker run-worker rustfmt clippy rust-test smoke-base smoke-long-note smoke-light-theme smoke-obsidian smoke-render-markdown smoke-render-markdown-rich smoke-jupynvim smoke-doctor smoke-health smoke-help smoke-integrations smoke-repros
 
 test:
 	nvim -l tests/minit.lua --minitest $(FILE)
@@ -51,6 +51,9 @@ smoke-render-markdown:
 
 smoke-render-markdown-rich:
 	nvim --headless -u repro/render_markdown.lua repro/render-markdown-sample.md '+lua vim.defer_fn(function() require("render_latex").status(); vim.cmd("qa") end, 1500)'
+
+smoke-jupynvim:
+	nvim --headless -u repro/jupynvim.lua repro/jupynvim-display-math.ipynb '+lua vim.defer_fn(function() require("render_latex").status(); vim.cmd("qa") end, 2000)'
 
 smoke-doctor:
 	nvim --headless -u repro/render_markdown.lua repro/render-markdown-smoke.md '+lua vim.defer_fn(function() require("render_latex").doctor(); vim.cmd("qa") end, 1000)'

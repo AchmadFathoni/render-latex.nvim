@@ -27,6 +27,7 @@ render-latex-install.auto	render-latex.txt	/*render-latex-install.auto*
 render-latex-install.repository	render-latex.txt	/*render-latex-install.repository*
 render-latex-install.version	render-latex.txt	/*render-latex-install.version*
 render-latex-introduction	render-latex.txt	/*render-latex-introduction*
+render-latex-jupynvim	render-latex.txt	/*render-latex-jupynvim*
 render-latex-max_file_lines	render-latex.txt	/*render-latex-max_file_lines*
 render-latex-obsidian	render-latex.txt	/*render-latex-obsidian*
 render-latex-options	render-latex.txt	/*render-latex-options*

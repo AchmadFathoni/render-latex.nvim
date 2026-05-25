@@ -140,6 +140,29 @@ require("render-markdown").setup({
 
 `render-latex.nvim` does not mutate other plugins' configuration. `:RenderLatex status`, `:RenderLatex doctor`, and `:checkhealth render_latex` report likely conflicts.
 
+### jupynvim experimental
+
+`render-latex.nvim` has an experimental source integration for [`jupynvim`](https://github.com/sheng-tse/jupynvim). When a jupynvim notebook buffer is detected, display math inside Markdown cells is rendered as images. Code cells are ignored, and inline math in notebook Markdown cells is left to jupynvim for now.
+
+Other plugins can expose Markdown-like regions through the experimental source API:
+
+```lua
+require("render_latex").register_source({
+  name = "my-plugin",
+  attach = function(bufnr)
+    return true -- return true only for buffers this source owns
+  end,
+  display_ranges = function(bufnr)
+    return {
+      { start_row = 0, end_row = 10 },
+    }
+  end,
+  inline = false,
+})
+```
+
+This API is intentionally experimental and may change before `v1.0.0`.
+
 ## Troubleshooting
 
 Start with `:RenderLatex doctor` or `:checkhealth render_latex`. They report the detected platform, worker path, image backend, tmux state, conceal settings, and integration warnings.

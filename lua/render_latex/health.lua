@@ -134,6 +134,17 @@ function M.check()
     vim.health.info("obsidian.nvim is not loaded")
   end
 
+  local jupynvim = Integrations.jupynvim(vim.api.nvim_get_current_buf())
+  if jupynvim.notebook then
+    vim.health.info(
+      "jupynvim notebook detected; experimental display-math rendering is active for Markdown cells"
+    )
+  elseif jupynvim.loaded then
+    vim.health.info("jupynvim loaded; no active notebook buffer detected")
+  else
+    vim.health.info("jupynvim is not loaded")
+  end
+
   local ok, err = pcall(function()
     vim.validate({
       enabled = { Config.enabled, "boolean" },
