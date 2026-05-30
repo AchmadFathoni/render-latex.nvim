@@ -40,6 +40,7 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 - Fixed stuck worker requests by timing out hung requests, terminating stale worker handles safely, and scheduling bounded render retries after worker reset errors.
 - Fixed tmux health and doctor diagnostics so they no longer claim Kitty passthrough is in use when the Neovim image backend is selected.
 - Clarified doctor diagnostics by using `status` and `suggested action` labels instead of overloading `recommendation`.
+- Fixed experimental jupynvim diagnostics and source API guards so unavailable or disabled notebook sources do not report invalid ranges, loaded notebook status stays consistent, and invalid custom `display_equations()` returns are ignored safely.
 
 ## 0.1.0-rc2 - 2026-05-16
 

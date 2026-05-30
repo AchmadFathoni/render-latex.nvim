@@ -570,8 +570,34 @@ describe("render_latex.integrations.jupynvim", function()
 
     assert.is_nil(jupynvim.notebook(buf))
     assert.are.equal(0, #jupynvim.markdown_ranges(buf))
+    assert.is_nil(jupynvim.status(buf).range_valid)
 
     package.loaded["jupynvim.notebook"] = previous
+  end)
+
+  it("reports jupynvim loaded when status requires the notebook module", function()
+    local previous = package.loaded["jupynvim.notebook"]
+    local sep = "# %%[jupynvim:cell-sep]"
+    package.loaded["jupynvim.notebook"] = {
+      CELL_SEP = sep,
+      get = function()
+        return {
+          cells = {
+            { cell_type = "markdown" },
+          },
+        }
+      end,
+    }
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "# markdown" })
+
+    local status = require("render_latex.integrations.jupynvim").status(buf)
+    package.loaded["jupynvim.notebook"] = previous
+
+    assert.is_true(status.loaded)
+    assert.is_true(status.notebook)
+    assert.is_true(status.range_valid)
   end)
 
   it("returns no ranges when jupynvim cell state and separators disagree", function()
@@ -749,6 +775,26 @@ describe("render_latex.integrations.jupynvim", function()
 
     assert.is_nil(source_status.active)
     assert.is_false(jupynvim_status.enabled)
+    assert.is_nil(jupynvim_status.range_valid)
+  end)
+
+  it("guards invalid custom display equation returns", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.b[buf].render_latex_invalid_display_source = true
+    sources.register({
+      name = "invalid-display-test",
+      attach = function(target)
+        return target == buf and vim.b[target].render_latex_invalid_display_source == true
+      end,
+      display_equations = function()
+        return false
+      end,
+    })
+
+    local equations = sources.display_equations(buf)
+    vim.b[buf].render_latex_invalid_display_source = false
+
+    assert.are.equal(0, #equations)
   end)
 
   it("guards invalid custom inline range returns", function()

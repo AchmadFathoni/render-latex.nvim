@@ -14,6 +14,10 @@ end
 
 function M.notebook(bufnr)
   local notebook = notebook_module()
+  return M.notebook_from_module(notebook, bufnr)
+end
+
+function M.notebook_from_module(notebook, bufnr)
   if notebook == nil or type(notebook.get) ~= "function" then
     return nil
   end
@@ -75,7 +79,7 @@ local function range_diagnostics(bufnr, notebook, nb)
     return {
       cell_count = 0,
       segment_count = 0,
-      range_valid = false,
+      range_valid = nil,
       range_warning = nil,
     }
   end
@@ -180,15 +184,14 @@ function M.image_bounds(bufnr, winid, window, position)
 end
 
 function M.status(bufnr)
-  local loaded = package.loaded["jupynvim"] ~= nil or package.loaded["jupynvim.notebook"] ~= nil
   if not enabled() then
     return {
       enabled = false,
-      loaded = loaded,
+      loaded = package.loaded["jupynvim"] ~= nil or package.loaded["jupynvim.notebook"] ~= nil,
       notebook = false,
       cell_count = 0,
       segment_count = 0,
-      range_valid = false,
+      range_valid = nil,
       range_warning = nil,
       markdown_ranges = 0,
       experimental = true,
@@ -196,7 +199,8 @@ function M.status(bufnr)
   end
 
   local notebook = notebook_module()
-  local nb = M.notebook(bufnr)
+  local loaded = package.loaded["jupynvim"] ~= nil or notebook ~= nil
+  local nb = M.notebook_from_module(notebook, bufnr)
   local diagnostics = range_diagnostics(bufnr, notebook, nb)
   local ranges = nb ~= nil and diagnostics.range_valid and M.markdown_ranges(bufnr) or {}
   return {

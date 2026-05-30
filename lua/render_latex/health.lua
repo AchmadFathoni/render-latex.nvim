@@ -137,7 +137,7 @@ function M.check()
   local jupynvim = Integrations.jupynvim(vim.api.nvim_get_current_buf())
   if not jupynvim.enabled then
     vim.health.info("jupynvim integration is disabled by config")
-  elseif jupynvim.notebook and not jupynvim.range_valid then
+  elseif jupynvim.notebook and jupynvim.range_valid == false then
     vim.health.warn(jupynvim.range_warning or "jupynvim cell ranges are invalid")
   elseif jupynvim.notebook then
     vim.health.info(

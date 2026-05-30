@@ -98,7 +98,10 @@ function M.display_equations(bufnr)
   end
   if type(source.display_equations) == "function" then
     local ok, equations = pcall(source.display_equations, bufnr)
-    return ok and equations or {}
+    if ok and type(equations) == "table" then
+      return equations
+    end
+    return {}
   end
   if type(source.display_ranges) == "function" then
     local ok, ranges = pcall(source.display_ranges, bufnr)
