@@ -23,6 +23,7 @@ local jupynvim_source = {
   incremental = false,
   suppress_default_equation_labels = true,
   clear_source_line_background = true,
+  hide_focused_equation = true,
   attach = function(bufnr)
     return Config.integrations.jupynvim.enabled
       and require("render_latex.integrations.jupynvim").notebook(bufnr) ~= nil
@@ -165,6 +166,7 @@ function M.render_context(bufnr)
     suppress_default_equation_labels = source and source.suppress_default_equation_labels == true
       or false,
     clear_source_line_background = source and source.clear_source_line_background == true or false,
+    hide_focused_equation = source and source.hide_focused_equation == true or false,
   }
 end
 

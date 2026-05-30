@@ -744,6 +744,7 @@ describe("render_latex.integrations.jupynvim", function()
     assert.is_true(status.experimental)
     assert.is_true(context.suppress_default_equation_labels)
     assert.is_true(context.clear_source_line_background)
+    assert.is_true(context.hide_focused_equation)
     assert.are.equal(1, #equations)
     assert.are.equal("visible", equations[1].text)
     assert.are.equal(0, #inline)
@@ -2527,6 +2528,81 @@ describe("render_latex.renderer", function()
         assert.not_equal("Normal", mark[4].line_hl_group)
       end
     end)
+  end)
+
+  it("reveals focused jupynvim equations in normal mode", function()
+    local previous_notebook = package.loaded["jupynvim.notebook"]
+    local previous_backend_status = image_backend.status
+    local previous_backend_get = image_backend.get
+    local previous_request_batch = worker.request_batch
+    local previous_viewport_range = viewport.viewport_range
+    local previous_visible_text_bounds = viewport.visible_text_bounds
+    local request_count = 0
+    local set_count = 0
+    local sep = "# %%[jupynvim:cell-sep]"
+
+    package.loaded["jupynvim.notebook"] = {
+      CELL_SEP = sep,
+      get = function()
+        return { cells = { { cell_type = "markdown" } } }
+      end,
+    }
+    image_backend.status = function()
+      return { available = true, name = "test" }
+    end
+    image_backend.get = function()
+      return {
+        del = function() end,
+        set = function()
+          set_count = set_count + 1
+          return set_count
+        end,
+      },
+        "test"
+    end
+    worker.request_batch = function(_, callback)
+      request_count = request_count + 1
+      callback(nil, "unexpected render request")
+    end
+    viewport.viewport_range = function()
+      return 0, 3
+    end
+    viewport.visible_text_bounds = function()
+      return 1, 20
+    end
+
+    local ok, err = pcall(function()
+      config.setup({ render_modes = { vim.api.nvim_get_mode().mode } })
+      local buf = vim.api.nvim_create_buf(true, true)
+      vim.api.nvim_set_current_buf(buf)
+      vim.bo[buf].filetype = "python"
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "$$", "x^2", "$$" })
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+      renderer.set_suppressed("cmdline", false)
+      renderer.set_suppressed("floating", false)
+      renderer.attach(buf)
+      renderer.render(buf)
+
+      local marks = vim.api.nvim_buf_get_extmarks(buf, config.ns, 0, -1, { details = true })
+      for _, mark in ipairs(marks) do
+        assert.not_equal("", mark[4].conceal)
+      end
+    end)
+
+    package.loaded["jupynvim.notebook"] = previous_notebook
+    worker.request_batch = previous_request_batch
+    viewport.viewport_range = previous_viewport_range
+    viewport.visible_text_bounds = previous_visible_text_bounds
+    image_backend.status = previous_backend_status
+    image_backend.get = previous_backend_get
+    config.setup()
+
+    if not ok then
+      error(err)
+    end
+    assert.are.equal(0, request_count)
+    assert.are.equal(0, set_count)
   end)
 
   it("defers non-incremental source rescans until equations are requested", function()

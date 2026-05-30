@@ -21,7 +21,10 @@ local function should_skip_render_loop()
   return suppression.cmdline
 end
 
-local function should_hide_focused_equation(state, key)
+local function should_hide_focused_equation(bufnr, state, key)
+  if Sources.render_context(bufnr).hide_focused_equation then
+    return true
+  end
   local mode = vim.api.nvim_get_mode().mode
   return state.dirty[key] == true or mode:match("^[iR]") ~= nil
 end
@@ -886,7 +889,7 @@ local function update_existing_visible(bufnr, indexed_equations, snapshot)
       active[equation.key] = true
       clear_suppressed_label(bufnr, state, equation)
       local meta = state.metadata[equation.key]
-      if focused[equation.key] and should_hide_focused_equation(state, equation.key) then
+      if focused[equation.key] and should_hide_focused_equation(bufnr, state, equation.key) then
         clear_equation_display(bufnr, equation.key, backend, true)
       elseif state.manual_raw[equation.key] or state.delayed_render[equation.key] then
         clear_equation_display(bufnr, equation.key, backend, true)
@@ -1064,7 +1067,9 @@ function M.render(bufnr)
       active[equation.key] = true
       clear_suppressed_label(bufnr, state, equation)
       local meta = state.metadata[equation.key]
-      if focused_keys[equation.key] and should_hide_focused_equation(state, equation.key) then
+      if
+        focused_keys[equation.key] and should_hide_focused_equation(bufnr, state, equation.key)
+      then
         clear_equation_display(bufnr, equation.key, backend, true)
       elseif state.manual_raw[equation.key] then
         clear_equation_display(bufnr, equation.key, backend, true)
