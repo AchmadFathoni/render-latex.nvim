@@ -24,6 +24,7 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 - Preferred Kitty graphics over the Neovim image API in tmux auto-detection when passthrough is available, while still falling back to `vim.ui.img` when Kitty is unavailable.
 - Made Kitty backend probing more tolerant of slow terminal responses by increasing the timeout and retrying unsupported probe results.
 - Allowed focused display equations to render in Normal mode on first view while preserving raw reveal behavior while editing.
+- Scoped `render-markdown.nvim` compatibility diagnostics to the current buffer and reported global, buffer-local, and LaTeX rendering state separately.
 
 ### Fixed
 
@@ -42,6 +43,7 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 - Clarified doctor diagnostics by using `status` and `suggested action` labels instead of overloading `recommendation`.
 - Fixed experimental jupynvim diagnostics and source API guards so unavailable or disabled notebook sources do not report invalid ranges, loaded notebook status stays consistent, and invalid custom `display_equations()` returns are ignored safely.
 - Fixed experimental jupynvim editing behavior so moving the cursor into a rendered notebook equation reveals the source in Normal mode.
+- Fixed right-aligned equation labels on Neovim 0.10 by falling back to end-of-line virtual text when `eol_right_align` extmarks are unavailable.
 
 ## 0.1.0-rc2 - 2026-05-16
 

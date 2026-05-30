@@ -1,4 +1,5 @@
 local Config = require("render_latex.config")
+local Compat = require("render_latex.compat")
 local Detect = require("render_latex.detect")
 
 local M = {}
@@ -448,7 +449,7 @@ function M.set_equation_label(bufnr, ns, state, equation, index)
 
   if style == "right" or style == "both" then
     opts.virt_text = { { label, "Comment" } }
-    opts.virt_text_pos = "eol_right_align"
+    opts.virt_text_pos = Compat.supports_eol_right_align() and "eol_right_align" or "eol"
   end
   if style == "sign" or style == "both" then
     opts.sign_text = "="

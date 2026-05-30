@@ -372,7 +372,8 @@ LazyVim users can apply the same override in a plugin spec:
 
 render-latex.nvim does not mutate other plugins' configuration. Compatibility
 diagnostics only run in manual commands and health checks, not in the render
-loop.
+loop. Diagnostics are scoped to the current buffer and report whether
+render-markdown.nvim is loaded, enabled, and inspectable.
 
 JUPYNVIM EXPERIMENTAL                         *render-latex-jupynvim*
 

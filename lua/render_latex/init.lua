@@ -352,9 +352,13 @@ function M.doctor_lines()
     "",
     "loaded: " .. tostring(render_markdown.loaded),
     "inspectable: " .. tostring(render_markdown.inspectable),
+    "render-latex active for buffer: " .. tostring(render_markdown.render_latex_active),
   })
-  if render_markdown.enabled ~= nil then
-    lines[#lines + 1] = "enabled: " .. tostring(render_markdown.enabled)
+  if render_markdown.global_enabled ~= nil then
+    lines[#lines + 1] = "global enabled: " .. tostring(render_markdown.global_enabled)
+  end
+  if render_markdown.buffer_enabled ~= nil then
+    lines[#lines + 1] = "buffer enabled: " .. tostring(render_markdown.buffer_enabled)
   end
   if render_markdown.latex_enabled ~= nil then
     lines[#lines + 1] = "latex enabled: " .. tostring(render_markdown.latex_enabled)

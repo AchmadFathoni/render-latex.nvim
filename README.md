@@ -138,7 +138,7 @@ require("render-markdown").setup({
 })
 ```
 
-`render-latex.nvim` does not mutate other plugins' configuration. `:RenderLatex status`, `:RenderLatex doctor`, and `:checkhealth render_latex` report likely conflicts.
+`render-latex.nvim` does not mutate other plugins' configuration. `:RenderLatex status`, `:RenderLatex doctor`, and `:checkhealth render_latex` report likely conflicts for the current buffer, including whether `render-markdown.nvim` is loaded, enabled, and inspectable.
 
 ### jupynvim experimental
 

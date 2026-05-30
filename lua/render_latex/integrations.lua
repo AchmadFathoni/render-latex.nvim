@@ -14,11 +14,13 @@ end
 
 local function render_markdown_status(bufnr)
   local status = {
-    loaded = module_loaded("render-markdown"),
-    enabled = nil,
+    loaded = module_loaded("render-markdown") or module_loaded("render-markdown.state"),
+    global_enabled = nil,
+    buffer_enabled = nil,
     latex_enabled = nil,
     inspectable = false,
     conflict = false,
+    render_latex_active = false,
     status = nil,
     action = nil,
   }
@@ -28,29 +30,51 @@ local function render_markdown_status(bufnr)
     return status
   end
 
+  local config = require("render_latex.config")
+  status.render_latex_active = config.enabled
+    and require("render_latex.sources").supports(bufnr or vim.api.nvim_get_current_buf())
+
   local state = safe_require("render-markdown.state")
   if type(state) ~= "table" then
     status.status = "loaded but not inspectable"
-    status.action = "if math rendering overlaps, set render-markdown latex.enabled=false"
+    status.conflict = status.render_latex_active
+    if status.render_latex_active then
+      status.action = "if math rendering overlaps, set render-markdown latex.enabled=false"
+    end
     return status
   end
 
   status.inspectable = true
-  status.enabled = state.enabled
+  status.global_enabled = state.enabled
 
   if type(state.get) == "function" then
     local config_ok, config = pcall(state.get, bufnr or vim.api.nvim_get_current_buf())
-    if config_ok and type(config) == "table" and type(config.latex) == "table" then
-      status.latex_enabled = config.latex.enabled
+    if config_ok and type(config) == "table" then
+      if type(config.enabled) == "boolean" then
+        status.buffer_enabled = config.enabled
+      end
+      if type(config.latex) == "table" then
+        status.latex_enabled = config.latex.enabled
+      end
     end
   end
 
-  status.conflict = status.latex_enabled ~= false
-  if status.conflict then
+  local render_markdown_active = status.global_enabled ~= false and status.buffer_enabled ~= false
+  status.conflict = status.render_latex_active
+    and render_markdown_active
+    and status.latex_enabled ~= false
+  if not status.render_latex_active then
+    status.status = "render-latex inactive for this buffer"
+  elseif not render_markdown_active then
+    status.status = "render-markdown disabled for this buffer"
+  elseif status.latex_enabled == false then
+    status.status = "compatible; render-markdown LaTeX rendering is disabled"
+  elseif status.latex_enabled == true then
     status.status = "conflict detected"
     status.action = "set render-markdown latex.enabled=false"
   else
-    status.status = "compatible; render-markdown LaTeX rendering is disabled"
+    status.status = "loaded; LaTeX setting unknown"
+    status.action = "if math rendering overlaps, set render-markdown latex.enabled=false"
   end
 
   return status

@@ -922,6 +922,32 @@ describe("render_latex.annotations", function()
     assert.are.equal(0, symbol_conceals)
   end)
 
+  it("falls back from right-aligned equation labels when unsupported", function()
+    local previous_supports_eol_right_align = compat.supports_eol_right_align
+    compat.supports_eol_right_align = function()
+      return false
+    end
+    config.setup({ render = { equation_labels = "right" } })
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "$$", "x", "$$" })
+    local ns = vim.api.nvim_create_namespace("render-latex-test-label-fallback")
+    local state = { labels = {}, label_layouts = {} }
+
+    local ok, err = pcall(function()
+      annotations.set_equation_label(buf, ns, state, { key = "eq", start_row = 0 }, 1)
+    end)
+    compat.supports_eol_right_align = previous_supports_eol_right_align
+    config.setup()
+
+    if not ok then
+      error(err)
+    end
+    local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
+    assert.are.equal(1, #marks)
+    assert.are.equal("eol", marks[1][4].virt_text_pos)
+    assert.are.same({ { "Eq. 1", "Comment" } }, marks[1][4].virt_text)
+  end)
+
   it("conceals broader inline math symbols", function()
     config.setup()
     local buf = vim.api.nvim_create_buf(false, true)
@@ -1773,21 +1799,26 @@ describe("render_latex.integrations", function()
   it("detects render-markdown LaTeX conflict when loaded", function()
     local previous = package.loaded["render-markdown"]
     local previous_state = package.loaded["render-markdown.state"]
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "markdown"
     package.loaded["render-markdown"] = {}
     package.loaded["render-markdown.state"] = {
       enabled = true,
       get = function()
-        return { latex = { enabled = true } }
+        return { enabled = true, latex = { enabled = true } }
       end,
     }
 
-    local conflict, status = integrations.render_markdown_conflict(0)
+    local conflict, status = integrations.render_markdown_conflict(buf)
 
     package.loaded["render-markdown"] = previous
     package.loaded["render-markdown.state"] = previous_state
 
     assert.is_true(conflict)
     assert.is_true(status.loaded)
+    assert.is_true(status.global_enabled)
+    assert.is_true(status.buffer_enabled)
+    assert.is_true(status.render_latex_active)
     assert.is_true(status.latex_enabled)
     assert.is_true(status.conflict)
     assert.are.equal("conflict detected", status.status)
@@ -1797,15 +1828,17 @@ describe("render_latex.integrations", function()
   it("accepts render-markdown with LaTeX disabled", function()
     local previous = package.loaded["render-markdown"]
     local previous_state = package.loaded["render-markdown.state"]
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "markdown"
     package.loaded["render-markdown"] = {}
     package.loaded["render-markdown.state"] = {
       enabled = true,
       get = function()
-        return { latex = { enabled = false } }
+        return { enabled = true, latex = { enabled = false } }
       end,
     }
 
-    local conflict, status = integrations.render_markdown_conflict(0)
+    local conflict, status = integrations.render_markdown_conflict(buf)
 
     package.loaded["render-markdown"] = previous
     package.loaded["render-markdown.state"] = previous_state
@@ -1815,6 +1848,83 @@ describe("render_latex.integrations", function()
     assert.is_false(status.conflict)
     assert.are.equal("compatible; render-markdown LaTeX rendering is disabled", status.status)
     assert.is_nil(status.action)
+  end)
+
+  it("detects render-markdown when only state is loaded", function()
+    local previous = package.loaded["render-markdown"]
+    local previous_state = package.loaded["render-markdown.state"]
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "markdown"
+    package.loaded["render-markdown"] = nil
+    package.loaded["render-markdown.state"] = {
+      enabled = true,
+      get = function()
+        return { enabled = true, latex = { enabled = false } }
+      end,
+    }
+
+    local status = integrations.status(buf).render_markdown
+
+    package.loaded["render-markdown"] = previous
+    package.loaded["render-markdown.state"] = previous_state
+
+    assert.is_true(status.loaded)
+    assert.is_true(status.inspectable)
+    assert.is_false(status.conflict)
+  end)
+
+  it(
+    "reports unknown render-markdown LaTeX settings without a hard conflict off markdown",
+    function()
+      local previous = package.loaded["render-markdown"]
+      local previous_state = package.loaded["render-markdown.state"]
+      local markdown = vim.api.nvim_create_buf(false, true)
+      local python = vim.api.nvim_create_buf(false, true)
+      vim.bo[markdown].filetype = "markdown"
+      vim.bo[python].filetype = "python"
+      package.loaded["render-markdown"] = {}
+      package.loaded["render-markdown.state"] = {
+        enabled = true,
+        get = function()
+          return { enabled = true }
+        end,
+      }
+
+      local markdown_conflict, markdown_status = integrations.render_markdown_conflict(markdown)
+      local python_conflict, python_status = integrations.render_markdown_conflict(python)
+
+      package.loaded["render-markdown"] = previous
+      package.loaded["render-markdown.state"] = previous_state
+
+      assert.is_true(markdown_conflict)
+      assert.are.equal("loaded; LaTeX setting unknown", markdown_status.status)
+      assert.is_false(python_conflict)
+      assert.is_false(python_status.render_latex_active)
+      assert.are.equal("render-latex inactive for this buffer", python_status.status)
+    end
+  )
+
+  it("does not report render-markdown conflict when disabled for the buffer", function()
+    local previous = package.loaded["render-markdown"]
+    local previous_state = package.loaded["render-markdown.state"]
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].filetype = "markdown"
+    package.loaded["render-markdown"] = {}
+    package.loaded["render-markdown.state"] = {
+      enabled = true,
+      get = function()
+        return { enabled = false, latex = { enabled = true } }
+      end,
+    }
+
+    local conflict, status = integrations.render_markdown_conflict(buf)
+
+    package.loaded["render-markdown"] = previous
+    package.loaded["render-markdown.state"] = previous_state
+
+    assert.is_false(conflict)
+    assert.is_false(status.buffer_enabled)
+    assert.are.equal("render-markdown disabled for this buffer", status.status)
   end)
 
   it("reports obsidian as loaded without requiring config changes", function()

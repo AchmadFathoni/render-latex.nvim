@@ -109,18 +109,15 @@ function M.check()
   local render_markdown_conflict, render_markdown =
     Integrations.render_markdown_conflict(vim.api.nvim_get_current_buf())
   if render_markdown.loaded then
-    if render_markdown_conflict then
-      if render_markdown.inspectable then
-        vim.health.warn(
-          "render-markdown.nvim is loaded with LaTeX rendering enabled; set `latex = { enabled = false }` in render-markdown.nvim"
-        )
-      else
-        vim.health.info(
-          "render-markdown.nvim is loaded but not inspectable; if math rendering overlaps, set `latex = { enabled = false }`"
-        )
-      end
+    if not render_markdown.inspectable then
+      vim.health.info(
+        "render-markdown.nvim is loaded but not inspectable; if math rendering overlaps, set `latex = { enabled = false }`"
+      )
+    elseif render_markdown_conflict then
+      local action = render_markdown.action ~= nil and ("; " .. render_markdown.action) or ""
+      vim.health.warn("render-markdown.nvim " .. render_markdown.status .. action)
     else
-      vim.health.ok("render-markdown.nvim loaded with LaTeX rendering disabled")
+      vim.health.ok("render-markdown.nvim " .. render_markdown.status)
     end
   else
     vim.health.info("render-markdown.nvim is not loaded")
