@@ -26,6 +26,7 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 
 ### Fixed
 
+- Fixed the worker exit callback to capture the spawned process handle correctly so LuaLS typecheck passes and worker recovery can reset state after process exit.
 - Fixed Ghostty and other Kitty graphics-compatible terminals being reported as unsupported outside tmux.
 - Avoided noisy worker-unavailable warnings while a worker build is in progress.
 - Fixed repro configs to resolve the plugin root relative to `repro/common.lua` instead of using a machine-specific absolute path.

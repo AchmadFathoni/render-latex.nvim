@@ -167,7 +167,9 @@ local function start_worker()
   state.generation = state.generation + 1
   local generation = state.generation
 
-  local handle, pid_or_err = vim.uv.spawn(bin, {
+  local handle
+  local pid_or_err
+  handle, pid_or_err = vim.uv.spawn(bin, {
     args = Config.worker.args,
     cwd = Util.root(),
     stdio = { stdin, stdout, stderr },
