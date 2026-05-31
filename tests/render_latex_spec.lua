@@ -3043,6 +3043,7 @@ describe("render_latex.renderer", function()
     local previous_viewport_range = viewport.viewport_range
     local previous_visible_text_bounds = viewport.visible_text_bounds
     local previous_readblob = vim.fn.readblob
+    local previous_screenpos = vim.fn.screenpos
     local request_count = 0
     local set_count = 0
     local del_count = 0
@@ -3085,6 +3086,9 @@ describe("render_latex.renderer", function()
     vim.fn.readblob = function()
       return "png"
     end
+    vim.fn.screenpos = function()
+      return { row = 1, col = 1, endcol = 1, curscol = 1 }
+    end
 
     local ok, err = pcall(function()
       local buf = vim.api.nvim_create_buf(true, true)
@@ -3118,6 +3122,7 @@ describe("render_latex.renderer", function()
     image_backend.status = previous_backend_status
     image_backend.get = previous_backend_get
     vim.fn.readblob = previous_readblob
+    vim.fn.screenpos = previous_screenpos
     config.setup()
 
     if not ok then
@@ -3135,6 +3140,7 @@ describe("render_latex.renderer", function()
     local previous_viewport_range = viewport.viewport_range
     local previous_visible_text_bounds = viewport.visible_text_bounds
     local previous_readblob = vim.fn.readblob
+    local previous_screenpos = vim.fn.screenpos
     local request_count = 0
     local set_count = 0
     local del_count = 0
@@ -3176,6 +3182,9 @@ describe("render_latex.renderer", function()
     end
     vim.fn.readblob = function()
       return "png"
+    end
+    vim.fn.screenpos = function()
+      return { row = 1, col = 1, endcol = 1, curscol = 1 }
     end
 
     local buf = vim.api.nvim_create_buf(true, true)
@@ -3225,6 +3234,7 @@ describe("render_latex.renderer", function()
     image_backend.status = previous_backend_status
     image_backend.get = previous_backend_get
     vim.fn.readblob = previous_readblob
+    vim.fn.screenpos = previous_screenpos
     config.setup()
 
     if not ok then
