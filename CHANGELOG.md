@@ -6,6 +6,8 @@ This project follows a practical changelog format inspired by [Keep a Changelog]
 
 ## Unreleased
 
+## 0.1.0-rc4 - 2026-05-31
+
 ### Changed
 
 - Added prebuilt worker support for Linux ARM64 / Asahi Linux.
