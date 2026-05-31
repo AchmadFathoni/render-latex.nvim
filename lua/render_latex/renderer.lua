@@ -25,6 +25,9 @@ local function should_hide_focused_equation(bufnr, state, key)
   if Sources.render_context(bufnr).hide_focused_equation then
     return true
   end
+  if state.focus_revealed[key] then
+    return true
+  end
   local mode = vim.api.nvim_get_mode().mode
   return state.dirty[key] == true or mode:match("^[iR]") ~= nil
 end
@@ -38,6 +41,7 @@ end
 ---@field last_worker_error string?
 ---@field placements table<integer, table<string, string>>
 ---@field focused_keys table<integer, string>
+---@field focus_revealed table<string, boolean>
 ---@field dirty table<string, boolean>
 ---@field equations table[]
 ---@field scanned boolean
@@ -90,6 +94,7 @@ local function get_buffer_state(bufnr)
     last_worker_error = nil,
     placements = {},
     focused_keys = {},
+    focus_revealed = {},
     dirty = {},
     equations = {},
     scanned = false,
@@ -452,6 +457,7 @@ local function prune_stale_state(state, indexed_equations)
     state.metadata,
     state.failures,
     state.manual_raw,
+    state.focus_revealed,
     state.dirty,
     state.mark_layouts,
     state.label_layouts,
@@ -476,6 +482,7 @@ function M.clear(bufnr)
   local state = buffers[bufnr]
   if state ~= nil then
     state.focused_keys = {}
+    state.focus_revealed = {}
     state.dirty = {}
     state.equations = {}
     state.scanned = false
@@ -505,6 +512,7 @@ function M.clear_all()
     state.images = {}
     state.placements = {}
     state.focused_keys = {}
+    state.focus_revealed = {}
     state.dirty = {}
     state.equations = {}
     state.scanned = false
@@ -582,6 +590,7 @@ local function sync_focus(bufnr, indexed_equations, snapshot)
   for key, _ in pairs(previous_active) do
     if next_active[key] == nil then
       clear_equation_display(bufnr, key)
+      state.focus_revealed[key] = nil
       if state.dirty[key] then
         local previous_equation = nil
         for _, equation in ipairs(indexed_equations) do
@@ -605,6 +614,9 @@ local function sync_focus(bufnr, indexed_equations, snapshot)
   for key, _ in pairs(next_active) do
     if previous_active[key] == nil then
       cancel_delayed_render(state, key)
+      if state.metadata[key] ~= nil or state.marks[key] ~= nil then
+        state.focus_revealed[key] = true
+      end
       clear_equation_display(bufnr, key)
     end
   end
